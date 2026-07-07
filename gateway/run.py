@@ -58,6 +58,11 @@ from agent.conversation_loop import INTERRUPT_WAITING_FOR_MODEL_PREFIX
 from agent.i18n import t
 from hermes_cli.config import cfg_get
 from hermes_cli.fallback_config import get_fallback_chain
+from gateway.profile_router import (
+    ProfileRoutingCandidate,
+    build_profile_routing_candidates,
+    select_profile_for_message,
+)
 
 # --- Agent cache tuning ---------------------------------------------------
 # Bounds the per-session AIAgent cache to prevent unbounded growth in
@@ -2863,6 +2868,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         self._restart_drain_timeout = self._load_restart_drain_timeout()
         self._provider_routing = self._load_provider_routing()
         self._fallback_model = self._load_fallback_model()
+        self._profile_router_candidates: Optional[list[ProfileRoutingCandidate]] = None
 
         # Wire process registry into session store for reset protection.
         # A background process older than the configured threshold (default 24h,
@@ -8730,12 +8736,59 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         """Return a message handler that stamps source.profile then delegates."""
         async def _handler(event):
             try:
-                if getattr(event, "source", None) is not None and not event.source.profile:
-                    event.source.profile = profile_name
+                source = getattr(event, "source", None)
+                if source is not None:
+                    source.profile = self._resolve_message_profile(event, profile_name)
             except Exception:
                 pass
             return await self._handle_message(event)
         return _handler
+
+    def _profile_router_roster(self) -> list[ProfileRoutingCandidate]:
+        """Return the cached roster used by the message router."""
+        cached = getattr(self, "_profile_router_candidates", None)
+        if cached is not None:
+            return cached
+        try:
+            cached = build_profile_routing_candidates(multiplex=True)
+        except Exception:
+            cached = []
+        self._profile_router_candidates = cached
+        return cached
+
+    def _resolve_message_profile(self, event, profile_name: str) -> str:
+        """Resolve which profile should own the inbound message.
+
+        The router is conservative: it only overrides the default profile when
+        the message has strong specialist signals. Explicit named-profile
+        routing (URL prefixes, per-credential adapters) always wins.
+        """
+        source = getattr(event, "source", None)
+        source_profile = (getattr(source, "profile", "") or "").strip()
+        current = (profile_name or "").strip() or "default"
+        if source_profile and source_profile != "default":
+            return source_profile
+        if current != "default":
+            return current
+        if not getattr(self.config, "multiplex_profiles", False):
+            return current
+
+        text = getattr(event, "text", "") or ""
+        if not text.strip() or text.lstrip().startswith("/"):
+            return current
+
+        routed_profile = select_profile_for_message(
+            text,
+            self._profile_router_roster(),
+            current_profile=current,
+        )
+        if routed_profile != current:
+            logger.info(
+                "Profile router routed inbound message from %s to %s",
+                current,
+                routed_profile,
+            )
+        return routed_profile
 
     @staticmethod
     def _adapter_credential_fingerprint(adapter: Any) -> Optional[str]:
