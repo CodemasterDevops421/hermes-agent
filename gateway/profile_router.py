@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
-from typing import Iterable, Sequence
+import time
+from typing import Any, Callable, Iterable, Optional, Sequence
 
 from hermes_cli.profiles import profiles_to_serve, read_profile_meta
 
@@ -156,3 +157,85 @@ def select_profile_for_message(
     if best_score - second_score < 1:
         return current
     return best_name
+
+
+# ── Conversation stickiness ─────────────────────────────────────────────────
+#
+# The router scores each message independently, so without stickiness a
+# follow-up like "thanks, now what?" after "debug this test" would fall back
+# to the default profile and lose the specialist conversation. A pin keeps
+# the conversation with the routed profile until it goes idle.
+
+_STICKY_TTL_SECONDS = 900.0
+_STICKY_MAX_ENTRIES = 512
+
+
+def conversation_key(source: Any) -> Optional[tuple]:
+    """Stable identity for one conversation, mirroring session grouping.
+
+    Returns None when the source has no usable chat identity (stickiness is
+    then skipped and per-message routing applies unchanged).
+    """
+    if source is None:
+        return None
+    chat_id = getattr(source, "chat_id", None)
+    if chat_id is None or str(chat_id) == "":
+        return None
+    platform = getattr(source, "platform", None)
+    return (
+        str(getattr(platform, "value", platform)),
+        str(chat_id),
+        str(getattr(source, "thread_id", "") or ""),
+        str(getattr(source, "user_id", "") or ""),
+    )
+
+
+class ProfileStickiness:
+    """Remembers recent reroutes so follow-ups stay with the specialist.
+
+    Pins expire after ``ttl_seconds`` of conversation inactivity (each use
+    refreshes the clock). A fresh strong signal for a different profile
+    re-pins immediately, and slash commands bypass routing entirely upstream,
+    so ``/profile`` style overrides are never shadowed by a pin.
+    """
+
+    def __init__(
+        self,
+        ttl_seconds: float = _STICKY_TTL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._ttl = ttl_seconds
+        self._clock = clock
+        self._pins: dict[tuple, tuple[str, float]] = {}
+
+    def get(self, key: tuple) -> Optional[str]:
+        entry = self._pins.get(key)
+        if entry is None:
+            return None
+        profile, expires_at = entry
+        if self._clock() >= expires_at:
+            self._pins.pop(key, None)
+            return None
+        return profile
+
+    def pin(self, key: tuple, profile: str) -> None:
+        if len(self._pins) >= _STICKY_MAX_ENTRIES:
+            self._evict()
+        self._pins[key] = (profile, self._clock() + self._ttl)
+
+    def refresh(self, key: tuple) -> None:
+        entry = self._pins.get(key)
+        if entry is not None:
+            self._pins[key] = (entry[0], self._clock() + self._ttl)
+
+    def clear(self, key: tuple) -> None:
+        self._pins.pop(key, None)
+
+    def _evict(self) -> None:
+        now = self._clock()
+        for k in [k for k, (_, exp) in self._pins.items() if now >= exp]:
+            self._pins.pop(k, None)
+        overflow = len(self._pins) - _STICKY_MAX_ENTRIES + 1
+        if overflow > 0:
+            for k, _ in sorted(self._pins.items(), key=lambda kv: kv[1][1])[:overflow]:
+                self._pins.pop(k, None)

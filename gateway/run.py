@@ -60,7 +60,9 @@ from hermes_cli.config import cfg_get
 from hermes_cli.fallback_config import get_fallback_chain
 from gateway.profile_router import (
     ProfileRoutingCandidate,
+    ProfileStickiness,
     build_profile_routing_candidates,
+    conversation_key,
     select_profile_for_message,
 )
 
@@ -2869,6 +2871,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         self._provider_routing = self._load_provider_routing()
         self._fallback_model = self._load_fallback_model()
         self._profile_router_candidates: Optional[list[ProfileRoutingCandidate]] = None
+        self._profile_stickiness = ProfileStickiness()
 
         # Wire process registry into session store for reset protection.
         # A background process older than the configured threshold (default 24h,
@@ -8777,18 +8780,42 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if not text.strip() or text.lstrip().startswith("/"):
             return current
 
+        sticky_key = conversation_key(source)
+        stickiness = self._profile_stickiness_store()
         routed_profile = select_profile_for_message(
             text,
             self._profile_router_roster(),
             current_profile=current,
         )
         if routed_profile != current:
+            if sticky_key is not None:
+                stickiness.pin(sticky_key, routed_profile)
             logger.info(
                 "Profile router routed inbound message from %s to %s",
                 current,
                 routed_profile,
             )
-        return routed_profile
+            return routed_profile
+
+        # No specialist signal in this message — keep the conversation with
+        # the profile a recent message was routed to, if any.
+        if sticky_key is not None:
+            pinned = stickiness.get(sticky_key)
+            if pinned and pinned != current:
+                stickiness.refresh(sticky_key)
+                logger.info(
+                    "Profile router kept conversation pinned to %s", pinned
+                )
+                return pinned
+        return current
+
+    def _profile_stickiness_store(self) -> ProfileStickiness:
+        """Return the sticky-pin store, creating it if needed."""
+        store = getattr(self, "_profile_stickiness", None)
+        if store is None:
+            store = ProfileStickiness()
+            self._profile_stickiness = store
+        return store
 
     @staticmethod
     def _adapter_credential_fingerprint(adapter: Any) -> Optional[str]:
