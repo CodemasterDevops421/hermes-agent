@@ -2717,7 +2717,14 @@ class BasePlatformAdapter(ABC):
         Logging every failure would spam the log on reconnect loops, so this
         surfaces the first failure per (platform, context) at warning level and
         downgrades subsequent failures to debug.
+
+        Secondary-profile adapters (multiplex mode) must NOT write here: the
+        runtime status file is keyed by platform only, so a token-less
+        profile adapter failing to connect would clobber the primary
+        adapter's healthy "connected" state with "disconnected".
         """
+        if getattr(self, "_suppress_shared_runtime_status", False):
+            return
         try:
             from gateway.status import write_runtime_status
             write_runtime_status(platform=self.platform.value, **kwargs)

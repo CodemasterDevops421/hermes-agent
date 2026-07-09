@@ -8691,6 +8691,10 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 adapter = self._create_adapter(platform, platform_config)
             if not adapter:
                 continue
+            # The shared runtime-status file is keyed by platform only, so a
+            # secondary profile's adapter (e.g. token-less telegram) failing
+            # to connect must not clobber the primary adapter's state.
+            adapter._suppress_shared_runtime_status = True
 
             # Same-token conflict detection — refuse a duplicate poll.
             fp = self._adapter_credential_fingerprint(adapter)
