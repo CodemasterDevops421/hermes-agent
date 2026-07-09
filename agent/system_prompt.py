@@ -65,6 +65,20 @@ def _ra():
     return run_agent
 
 
+def _is_default_profile() -> bool:
+    """True when the active HERMES_HOME is the default profile.
+
+    Fails open (True) so a resolution error degrades to the pre-scoping
+    behavior rather than silently dropping coordinator guidance.
+    """
+    try:
+        from hermes_cli.profiles import get_active_profile_name
+
+        return (get_active_profile_name() or "default") == "default"
+    except Exception:
+        return True
+
+
 def _resolve_platform_hint(agent: Any, platform_key: str, default_hint: str) -> str:
     """Apply a per-platform prompt-hint override to the default hint.
 
@@ -218,7 +232,9 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     if getattr(agent, "_parallel_tool_call_guidance", True) and agent.valid_tool_names:
         stable_parts.append(PARALLEL_TOOL_CALL_GUIDANCE)
 
-    if "delegate_task" in agent.valid_tool_names:
+    # Coordinator-only guidance: specialist profiles are themselves the
+    # delegation target, so only the default profile is steered to delegate.
+    if "delegate_task" in agent.valid_tool_names and _is_default_profile():
         stable_parts.append(SPECIALIST_DELEGATION_GUIDANCE)
 
     # Tool-aware behavioral guidance: only inject when the tools are loaded
