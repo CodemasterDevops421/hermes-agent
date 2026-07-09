@@ -54,6 +54,8 @@ _PROFILE_HINTS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+_DELEGATE_ONLY_PROFILES = frozenset({"coding"})
+
 
 def build_profile_routing_candidates(multiplex: bool = True) -> list[ProfileRoutingCandidate]:
     """Return profile candidates with their descriptions attached."""
@@ -91,6 +93,8 @@ def _phrase_hits(text: str, phrases: Sequence[str]) -> int:
 
 def _score_candidate(candidate: ProfileRoutingCandidate, normalized_text: str, tokens: set[str]) -> int:
     if candidate.is_default or candidate.name == "default":
+        return 0
+    if candidate.name in _DELEGATE_ONLY_PROFILES:
         return 0
 
     score = 0

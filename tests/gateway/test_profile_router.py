@@ -28,7 +28,7 @@ class TestProfileRouter:
         )
         assert result == "default"
 
-    def test_routes_code_work_to_coding(self):
+    def test_keeps_code_work_on_default_for_delegation(self):
         candidates = [
             ProfileRoutingCandidate("default", "General-purpose Hermes profile."),
             ProfileRoutingCandidate("coding", "Codebase inspection and debugging."),
@@ -39,7 +39,20 @@ class TestProfileRouter:
             candidates,
             current_profile="default",
         )
-        assert result == "coding"
+        assert result == "default"
+
+    def test_keeps_apify_actor_code_review_on_default_for_delegation(self):
+        candidates = [
+            ProfileRoutingCandidate("default", "General-purpose Hermes profile."),
+            ProfileRoutingCandidate("coding", "Codebase inspection and debugging."),
+            ProfileRoutingCandidate("devops", "Deployments, Docker, and servers."),
+        ]
+        result = select_profile_for_message(
+            "Can you review this apify actor code. Apify automatic checks are getting failed",
+            candidates,
+            current_profile="default",
+        )
+        assert result == "default"
 
     def test_routes_ops_work_to_devops(self):
         candidates = [
@@ -119,7 +132,7 @@ class TestProfileStickiness:
 
 class TestGatewayProfileHandler:
     @pytest.mark.asyncio
-    async def test_default_handler_can_reroute_to_coding(self):
+    async def test_default_handler_keeps_code_work_on_default(self):
         runner = GatewayRunner.__new__(GatewayRunner)
         runner.config = GatewayConfig(multiplex_profiles=True)
         runner._profile_router_candidates = [
@@ -146,15 +159,16 @@ class TestGatewayProfileHandler:
 
         result = await handler(_Evt())
         assert result == "ok"
-        assert seen["profile"] == "coding"
+        assert seen["profile"] == "default"
 
     @pytest.mark.asyncio
-    async def test_follow_up_sticks_to_routed_profile(self):
+    async def test_follow_up_sticks_to_routed_ops_profile(self):
         runner = GatewayRunner.__new__(GatewayRunner)
         runner.config = GatewayConfig(multiplex_profiles=True)
         runner._profile_router_candidates = [
             ProfileRoutingCandidate("default", "General-purpose Hermes profile."),
             ProfileRoutingCandidate("coding", "Codebase inspection and debugging."),
+            ProfileRoutingCandidate("devops", "Deployments, Docker, and servers."),
         ]
 
         seen = []
@@ -180,10 +194,10 @@ class TestGatewayProfileHandler:
             _Evt.text = text
             return _Evt()
 
-        await handler(_make_event("please debug this failing python test"))
+        await handler(_make_event("fix the s3 backup and disk pressure on the pi"))
         await handler(_make_event("thanks, now what should I do?"))
         await handler(_make_event("hello there", chat_id="other-chat"))
-        assert seen == ["coding", "coding", "default"]
+        assert seen == ["devops", "devops", "default"]
 
     @pytest.mark.asyncio
     async def test_existing_named_profile_stays_put(self):

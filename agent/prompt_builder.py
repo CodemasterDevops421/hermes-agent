@@ -373,6 +373,26 @@ PARALLEL_TOOL_CALL_GUIDANCE = (
     "in doubt and the calls are independent, batch them."
 )
 
+# Default-profile coordinator guidance. This keeps the cheap/default chat as
+# the user-facing owner while using delegate_task only for specialist code work
+# that benefits from an isolated subagent.
+SPECIALIST_DELEGATION_GUIDANCE = (
+    "# Specialist delegation\n"
+    "In the default Hermes profile, stay the coordinator for normal chat, "
+    "memory lookup, file lookup, planning, and light code questions. Do not "
+    "move the whole conversation into a specialist mindset just because code "
+    "is mentioned.\n"
+    "Use `delegate_task` for focused specialist help when the user asks for "
+    "deep code review, failing tests, build errors, repository inspection, "
+    "implementation/refactor work, TypeScript/Python debugging, or Apify actor "
+    "automatic-check failures. Delegate only the technical subset with the "
+    "exact repo/path/error context you have, then synthesize the result back "
+    "to the user in the default conversation.\n"
+    "Do not delegate trivial questions or broad casual follow-ups. The goal is "
+    "cost control: default stays cheap and continuous; specialist subagents "
+    "are used only when their focused reasoning is worth the extra call."
+)
+
 # OpenAI GPT/Codex-specific execution guidance.  Addresses known failure modes
 # where GPT models abandon work on partial results, skip prerequisite lookups,
 # hallucinate instead of using tools, and declare "done" without verification.
