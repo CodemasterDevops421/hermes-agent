@@ -2416,6 +2416,14 @@ DEFAULT_CONFIG = {
         },
     },
 
+    # Learning ledger - passive local JSONL evidence for future validation of
+    # memory/skill improvements. Stores bounded user/assistant previews plus
+    # turn metadata and tool names, not full transcripts or tool outputs.
+    "learning": {
+        "ledger_enabled": True,
+        "ledger_max_bytes": 5_000_000,
+    },
+
     # Honcho AI-native memory -- reads ~/.honcho/config.json as single source of truth.
     # This section is only needed for hermes-specific overrides; everything else
     # (apiKey, workspace, peerName, sessions, enabled) comes from the global config.
@@ -5231,7 +5239,7 @@ _KNOWN_ROOT_KEYS = {
     "fallback_providers", "credential_pool_strategies", "toolsets",
     "agent", "terminal", "display", "compression", "delegation",
     "auxiliary", "moa", "custom_providers", "context", "memory", "gateway",
-    "sessions", "streaming", "updates", "mcp_servers",
+    "sessions", "streaming", "updates", "mcp_servers", "learning",
 }
 
 # Valid fields inside a custom_providers list entry

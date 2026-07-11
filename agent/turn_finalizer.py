@@ -506,6 +506,25 @@ def finalize_turn(
         messages=messages,
     )
 
+    # Passive learning evidence ledger. This gives future self-improvement
+    # evaluators a compact record of what actually happened in the turn without
+    # changing prompt state, memory, or skill behavior.
+    try:
+        from agent.learning_ledger import record_turn as _record_learning_turn
+
+        _record_learning_turn(
+            agent,
+            user_message=original_user_message,
+            final_response=final_response,
+            messages=messages,
+            api_call_count=api_call_count,
+            interrupted=interrupted,
+            failed=failed,
+            turn_exit_reason=_turn_exit_reason,
+        )
+    except Exception:
+        pass
+
     # Background memory/skill review — runs AFTER the response is delivered
     # so it never competes with the user's task for model attention.
     if final_response and not interrupted and (_should_review_memory or _should_review_skills):
