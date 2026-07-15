@@ -8,6 +8,10 @@ sidebar_position: 1
 
 Hermes Agent includes a rich set of capabilities that extend far beyond basic chat. From persistent memory and file-aware context to browser automation and voice conversations, these features work together to make Hermes a powerful autonomous assistant.
 
+:::tip Start with the smallest useful setup
+If you're new to Hermes, begin with [Start Here](start-here.md) and [Architecture Map](architecture-map.md) before turning on every integration.
+:::
+
 :::tip Don't know where to start?
 `hermes setup --portal` covers a model provider plus all four Tool Gateway tools (web search, image generation, TTS, browser) in one command. See [Nous Portal](/integrations/nous-portal).
 :::

@@ -104,10 +104,23 @@ For more context, see the upstream Astral reports: [astral-sh/uv#13553](https://
 
 ## Getting Started
 
+### Start here
+
+1. Pick one model/provider.
+2. Start the CLI.
+3. Learn the loop, memory, and tools before enabling everything else.
+
+### Minimal commands
+
 ```bash
 hermes              # Interactive CLI — start a conversation
 hermes model        # Choose your LLM provider and model
 hermes tools        # Configure which tools are enabled
+```
+
+### Expand when needed
+
+```bash
 hermes config set   # Set individual config values
 hermes gateway      # Start the messaging gateway (Telegram, Discord, etc.)
 hermes setup        # Run the full setup wizard (configures everything at once)
@@ -115,6 +128,12 @@ hermes claw migrate # Migrate from OpenClaw (if coming from OpenClaw)
 hermes update       # Update to the latest version
 hermes doctor       # Diagnose any issues
 ```
+
+### Read the architecture
+
+- [Start Here](https://hermes-agent.nousresearch.com/docs/user-guide/features/start-here)
+- [Architecture Map](https://hermes-agent.nousresearch.com/docs/user-guide/features/architecture-map)
+- [Features Overview](https://hermes-agent.nousresearch.com/docs/user-guide/features/overview)
 
 📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
 
